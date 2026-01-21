@@ -1,0 +1,18 @@
+# Секреты
+.env
+*.secret
+*.key
+*.pem
+
+# Данные
+**/data/
+**/*_data/
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+*.tmp
+.tmp/
+.DS_Store
