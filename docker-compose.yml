@@ -139,12 +139,11 @@ services:
   # ========== MICROSERVICES ==========
   auth-service:
     build:
-      context: ../auth
+      context: C:/auth
       dockerfile: Dockerfile
     container_name: auth-service
     ports:
       - "8787:8787"
-    # Конфиг уже встроен в образ через Dockerfile
     depends_on:
       - redis-auth
     networks:
@@ -152,11 +151,11 @@ services:
 
   users-service:
     build:
-      context: ../users
+      context: C:/TODOLIST
       dockerfile: Dockerfile
     container_name: users-service
     ports:
-      - "8081:8080"  # Наружу 8081, внутри 8080
+      - "8081:8080"
     depends_on:
       - postgres-users
     networks:
@@ -164,11 +163,11 @@ services:
 
   tasks-service:
     build:
-      context: ../tasks
+      context: C:/TODOLIST_Tasks
       dockerfile: Dockerfile
     container_name: tasks-service
     ports:
-      - "8082:8000"  # Наружу 8082, внутри 8000
+      - "8082:8000"
     depends_on:
       - postgres-tasks
       - redis-tasks
@@ -178,11 +177,11 @@ services:
 
   analytics-service:
     build:
-      context: ../analytics
+      context: C:/analytics-microservice
       dockerfile: Dockerfile
     container_name: analytics-service
     ports:
-      - "8083:5050"  # Наружу 8083, внутри 5050
+      - "8083:5050"
     depends_on:
       - clickhouse-analytics
       - redis-analytics
@@ -193,12 +192,11 @@ services:
   # ========== GATEWAY ==========
   gateway:
     build:
-      context: ../gateway
+      context: C:/go-microservices/gateway
       dockerfile: Dockerfile
     container_name: gateway
     ports:
-      - "8080:3000"  # Наружу 8080, внутри 3000
-    # Gateway конфиг уже встроен в образ
+      - "8080:3000"
     environment:
       - AUTH_SERVICE_HOST=auth-service
       - AUTH_SERVICE_PORT=8787
