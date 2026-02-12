@@ -1,0 +1,2 @@
+"${DB_TASKS_USERNAME}" "${DB_TASKS_PASSWORD}"
+"postgres" "postgres"

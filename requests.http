@@ -1,0 +1,77 @@
+///REGISTER
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{
+  "email": "sebrov2019@mail.ru",
+  "password": "48Region@",
+  "name": "Арсений"
+}
+###
+///VERIFY_EMAIL
+POST http://localhost:3000/auth/verify-email
+Content-Type: application/json
+
+{
+  "session": "user:sebrov2019@mail.ru",
+  "code": "1614"
+}
+###
+///GET_ACCES_TOKEN
+POST http://localhost:3000/auth/get-access-token
+Content-Type: application/json
+
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzA4MDgxMzksImlhdCI6MTc3MDIwMzMzOSwibGF0IjoxNzcwMjAzMzM5LCJzZXNzaW9uIjoiMGZjMDE3MDEtMzc0MC00Y2MwLWE3ZjUtZDkzOTNiNGU4ZjI2OjEyMyJ9.VYdWpyaBjC-2tBHNutUI_19ipzFfnYacTbTCKwXoemc"
+}
+###
+///LOGIN
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "sebrov2019@mail.ru",
+  "password": "48Region@",
+  "deviceID": "123"
+}
+###
+///CREATE_TASK
+POST http://localhost:3000/v1/users/fbf2d7bb-f10c-4d92-abcd-24bea681f0b5/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzA4MTAzMzksImlhdCI6MTc3MDgwOTQzOSwianRpIjoiYmNhYTY4ZjgtYjA0OC00OWI2LWJhNzYtZjY2MjVjZjVhMGZiIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6ImZiZjJkN2JiLWYxMGMtNGQ5Mi1hYmNkLTI0YmVhNjgxZjBiNToxMjMiLCJzdWIiOiJmYmYyZDdiYi1mMTBjLTRkOTItYWJjZC0yNGJlYTY4MWYwYjUiLCJ2ZXIiOjF9.kkG9tpJhIe_WwA6YpuhjfMINrEvji0_7jyetUJE0FfM
+
+{
+"title": "ТЕСТ17",
+"description": "ТЕСТ 2",
+"status": "1",
+  "priory": "blue",
+"due_date": "2026-05-02 15:59"
+}
+
+###
+///FIND_ONE_TASK
+GET http://localhost:3000/tasks/2a3c77be-88c3-4405-be93-837b35c4657c
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzAyMjYyNTUsImlhdCI6MTc3MDIyNTM1NSwianRpIjoiMDljOWU2ZjItNzM0MC00MjllLWE3OTUtZGU2MDE1ODgyZDcxIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6IjBmYzAxNzAxLTM3NDAtNGNjMC1hN2Y1LWQ5MzkzYjRlOGYyNjoxMjMiLCJzdWIiOiIwZmMwMTcwMS0zNzQwLTRjYzAtYTdmNS1kOTM5M2I0ZThmMjYiLCJ2ZXIiOjF9.D206Uv2NNtukCP5QPG94FNCdjp2spP2sTBoC5kIOZVU
+
+###
+///FIND_ONE_USER
+GET http://localhost:3000/users/5af30425-d75b-4e0d-b6da-0f30aa2b7918
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzAxODM5MjksImlhdCI6MTc3MDE4MzAyOSwianRpIjoiOTZjN2Y5N2QtZWE0Yy00NWM3LTkyMjEtMjg3OTI4Y2RlMzUyIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6IjgxZDc3NTA5LTg4Y2ItNDAyMy04NDhkLWJmN2M1N2Y0OTk2MzoxMjMiLCJzdWIiOiI4MWQ3NzUwOS04OGNiLTQwMjMtODQ4ZC1iZjdjNTdmNDk5NjMiLCJ2ZXIiOjJ9.vAsDj2zpP9dx-D2-F19pVK6_AQa2Z4IILfGqRGvGju0
+
+###
+///PATCH_USER
+PATCH http://localhost:3000/users/5af30425-d75b-4e0d-b6da-0f30aa2b7918
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzAxODM5MjksImlhdCI6MTc3MDE4MzAyOSwianRpIjoiOTZjN2Y5N2QtZWE0Yy00NWM3LTkyMjEtMjg3OTI4Y2RlMzUyIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6IjgxZDc3NTA5LTg4Y2ItNDAyMy04NDhkLWJmN2M1N2Y0OTk2MzoxMjMiLCJzdWIiOiI4MWQ3NzUwOS04OGNiLTQwMjMtODQ4ZC1iZjdjNTdmNDk5NjMiLCJ2ZXIiOjJ9.vAsDj2zpP9dx-D2-F19pVK6_AQa2Z4IILfGqRGvGju0
+
+{
+  "name": "Артем"
+}
+
+###
+///DELETE_USER
+DELETE  http://localhost:3000/users/5af30425-d75b-4e0d-b6da-0f30aa2b7918
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzAxMzExNzQsImlhdCI6MTc3MDEzMDI3NCwianRpIjoiOWZmMGExYzctZTE1Yy00YzE0LThmZDUtODZmNDY0ZmY4NWRmIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6IjVhZjMwNDI1LWQ3NWItNGUwZC1iNmRhLTBmMzBhYTJiNzkxODoxMjMiLCJzdWIiOiI1YWYzMDQyNS1kNzViLTRlMGQtYjZkYS0wZjMwYWEyYjc5MTgiLCJ2ZXIiOjF9.14fcOMawxQKfcHyYqLGZ8CuIBO9lf_dkQ6uuguYjaWY
+###
+///FIND_All_TASKS_ANALYTICS
+GET http://localhost:3000/analytics/tasks?status=eq:completed
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzAxODM5MjksImlhdCI6MTc3MDE4MzAyOSwianRpIjoiOTZjN2Y5N2QtZWE0Yy00NWM3LTkyMjEtMjg3OTI4Y2RlMzUyIiwicm9sZXMiOiJ1c2VyIiwic2Vzc2lvbiI6IjgxZDc3NTA5LTg4Y2ItNDAyMy04NDhkLWJmN2M1N2Y0OTk2MzoxMjMiLCJzdWIiOiI4MWQ3NzUwOS04OGNiLTQwMjMtODQ4ZC1iZjdjNTdmNDk5NjMiLCJ2ZXIiOjJ9.vAsDj2zpP9dx-D2-F19pVK6_AQa2Z4IILfGqRGvGju0

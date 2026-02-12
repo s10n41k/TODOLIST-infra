@@ -11,9 +11,9 @@ volumes:
   redis_auth_data:
   redis_tasks_data:
   redis_analytics_data:
-  redis_gateway_data:
   zookeeper_data:
   kafka_data:
+  pgbouncer_data:
 
 services:
   # ========== DATABASES ==========
@@ -25,7 +25,7 @@ services:
       POSTGRES_USER: ${DB_USERS_USERNAME}
       POSTGRES_PASSWORD: ${DB_USERS_PASSWORD}
     ports:
-      - "${DB_USERS_PORT}:5432"
+      - "${DB_USERS_EXTERNAL_PORT}:${DB_USERS_PORT}"
     volumes:
       - postgres_users_data:/var/lib/postgresql/data
     networks:
@@ -44,13 +44,44 @@ services:
       POSTGRES_USER: ${DB_TASKS_USERNAME}
       POSTGRES_PASSWORD: ${DB_TASKS_PASSWORD}
     ports:
-      - "${DB_TASKS_PORT}:5432"
+      - "${DB_TASKS_EXTERNAL_PORT}:${DB_TASKS_PORT}"
     volumes:
       - postgres_tasks_data:/var/lib/postgresql/data
+      - ./postgres-tasks.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_TASKS_USERNAME} -d ${DB_TASKS_DATABASE}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_TASKS_USERNAME} -d ${DB_TASKS_DATABASE}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== PGBOUNCER (КОННЕКШН ПУЛ) ==========
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: pgbouncer-tasks
+    environment:
+      DB_HOST: postgres-tasks
+      DB_PORT: 5432
+      DB_NAME: mydatabase1
+      DB_USER: user1
+      DB_PASSWORD: password1
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 80
+      LISTEN_PORT: 6432
+      IGNORE_STARTUP_PARAMETERS: idle_in_transaction_session_timeout,jit,extra_float_digits,application_name,search_path,TimeZone,options
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres-tasks:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-h", "localhost", "-p", "6432", "-U", "user1", "-d", "mydatabase1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,15 +105,15 @@ services:
   redis-auth:
     image: redis:7-alpine
     container_name: redis-auth
-    command: redis-server --port ${REDIS_AUTH_PORT} --requirepass ${REDIS_AUTH_PASSWORD}
+    command: redis-server --port ${REDIS_AUTH_PORT} --save "" --appendonly no
     ports:
-      - "${REDIS_AUTH_PORT}:${REDIS_AUTH_PORT}"
+      - "${REDIS_AUTH_EXTERNAL_PORT}:${REDIS_AUTH_PORT}"
     volumes:
       - redis_auth_data:/data
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_AUTH_PORT}", "-a", "${REDIS_AUTH_PASSWORD}", "ping"]
+      test: [ "CMD", "redis-cli", "-p", "${REDIS_AUTH_PORT}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -90,14 +121,15 @@ services:
   redis-tasks:
     image: redis:7-alpine
     container_name: redis-tasks
+    command: redis-server --port ${REDIS_TASKS_PORT} --save "" --appendonly no
     ports:
-      - "${REDIS_TASKS_PORT}:${REDIS_TASKS_PORT}"
+      - "${REDIS_TASKS_EXTERNAL_PORT}:${REDIS_TASKS_PORT}"
     volumes:
       - redis_tasks_data:/data
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_TASKS_PORT}", "ping"]
+      test: [ "CMD", "redis-cli", "-p", "${REDIS_TASKS_PORT}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -105,30 +137,15 @@ services:
   redis-analytics:
     image: redis:7-alpine
     container_name: redis-analytics
-    command: redis-server --port ${REDIS_ANALYTICS_PORT} --requirepass ${REDIS_ANALYTICS_PASSWORD}
+    command: redis-server --port ${REDIS_ANALYTICS_PORT} --save "" --appendonly no
     ports:
-      - "${REDIS_ANALYTICS_PORT}:${REDIS_ANALYTICS_PORT}"
+      - "${REDIS_ANALYTICS_EXTERNAL_PORT}:${REDIS_ANALYTICS_PORT}"
     volumes:
       - redis_analytics_data:/data
     networks:
       - microservices-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_ANALYTICS_PORT}", "-a", "${REDIS_ANALYTICS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis-gateway:
-    image: redis:7-alpine
-    container_name: redis-gateway
-    ports:
-      - "${REDIS_GATEWAY_PORT}:${REDIS_GATEWAY_PORT}"
-    volumes:
-      - redis_gateway_data:/data
-    networks:
-      - microservices-net
-    healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_GATEWAY_PORT}", "ping"]
+      test: [ "CMD", "redis-cli", "-p", "${REDIS_ANALYTICS_PORT}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -156,37 +173,57 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:4500,PLAINTEXT_HOST://localhost:4500
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     ports:
-      - "4500:4500"
+      - "9093:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD", "kafka-topics", "--list", "--bootstrap-server", "localhost:9092" ]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
     networks:
       - microservices-net
 
   # ========== MICROSERVICES ==========
   auth-service:
     build:
-      context: ./auth  # ИЛИ ../auth если структура другая
+      context: ../auth
       dockerfile: Dockerfile
+      args:
+        - GO_VERSION=1.25.4
     container_name: auth-service
     ports:
-      - "${AUTH_PORT}:${AUTH_PORT}"
+      - "${GRPC_PORT}:${GRPC_PORT}"
     environment:
+      - ENV=${ENV}
       - REDIS_HOST=${REDIS_AUTH_HOST}
       - REDIS_PORT=${REDIS_AUTH_PORT}
+      - USERS_PROTOCOL=${USERS_PROTOCOL}
+      - USERS_SERVICE_HOST=users-service
+      - USERS_SERVICE_PORT=${USERS_PORT}
       - REDIS_PASSWORD=${REDIS_AUTH_PASSWORD}
+      - TOKEN_ACCESS_SECRET=${TOKEN_ACCESS_SECRET}
+      - TOKEN_REFRESH_SECRET=${TOKEN_REFRESH_SECRET}
+      - TOKEN_ACCESS_TTL=${TOKEN_ACCESS_TTL}
+      - TOKEN_REFRESH_TTL=${TOKEN_REFRESH_TTL}
       - JWT_SECRET=${TOKEN_ACCESS_SECRET}
-      - ACCESS_TOKEN_TTL=${TOKEN_ACCESS_TTL}
-      - REFRESH_TOKEN_TTL=${TOKEN_REFRESH_TTL}
+      - GATEWAY_SIGN=${GATEWAY_SIGN}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_USE_TLS=${SMTP_USE_TLS}
+      - APP_URL=${APP_URL}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL}
+      - SMTP_TIMEOUT=${SMTP_TIMEOUT}
+      - GRPC_PORT=${GRPC_PORT}
     depends_on:
       redis-auth:
         condition: service_healthy
@@ -195,19 +232,24 @@ services:
 
   users-service:
     build:
-      context: ./TODOLIST  # ИЛИ ../TODOLIST
+      context: ../TODOLIST
       dockerfile: Dockerfile
+      args:
+        - GO_VERSION=1.23.0
     container_name: users-service
     ports:
       - "${USERS_PORT}:${USERS_PORT}"
     environment:
-      - DB_HOST=${DB_USERS_HOST}
-      - DB_PORT=${DB_USERS_PORT}
-      - DB_USER=${DB_USERS_USERNAME}
-      - DB_PASSWORD=${DB_USERS_PASSWORD}
-      - DB_NAME=${DB_USERS_DATABASE}
-      - JWT_SECRET=${JWT_SECRET}
-      - GATEWAY_SECRET=${JWT_SECRET}
+      - ENV=${ENV}
+      - USERS_PORT=${USERS_PORT}
+      - LISTEN_BIND_IP=${LISTEN_BIND_IP}
+      - DB_USERS_HOST=${DB_USERS_HOST}
+      - DB_USERS_PORT=${DB_USERS_PORT}
+      - DB_USERS_DATABASE=${DB_USERS_DATABASE}
+      - DB_USERS_USERNAME=${DB_USERS_USERNAME}
+      - DB_USERS_PASSWORD=${DB_USERS_PASSWORD}
+      - JWT_SECRET=${TOKEN_ACCESS_SECRET}
+      - GATEWAY_SIGN=${GATEWAY_SIGN}
     depends_on:
       postgres-users:
         condition: service_healthy
@@ -216,89 +258,103 @@ services:
 
   tasks-service:
     build:
-      context: ./TODOLIST_Tasks  # ИЛИ ../TODOLIST_Tasks
+      context: ../TODOLIST_Tasks
       dockerfile: Dockerfile
+      args:
+        - GO_VERSION=1.24.0
     container_name: tasks-service
     ports:
       - "${TASKS_PORT}:${TASKS_PORT}"
+      - "6060:6060"
     environment:
-      - DB_HOST=${DB_TASKS_HOST}
-      - DB_PORT=${DB_TASKS_PORT}
-      - DB_USER=${DB_TASKS_USERNAME}
-      - DB_PASSWORD=${DB_TASKS_PASSWORD}
-      - DB_NAME=${DB_TASKS_DATABASE}
-      - REDIS_HOST=${REDIS_TASKS_HOST}
-      - REDIS_PORT=${REDIS_TASKS_PORT}
+      - ENV=${ENV}
+      - DB_TASKS_HOST=pgbouncer  # ← ИЗМЕНЕНО: был postgres-tasks
+      - DB_TASKS_PORT=6432       # ← ИЗМЕНЕНО: был 5432
+      - DB_TASKS_USERNAME=${DB_TASKS_USERNAME}
+      - DB_TASKS_PASSWORD=${DB_TASKS_PASSWORD}
+      - DB_TASKS_DATABASE=${DB_TASKS_DATABASE}
+      - REDIS_TASKS_HOST=${REDIS_TASKS_HOST}
+      - REDIS_TASKS_PORT=${REDIS_TASKS_PORT}
+      - REDIS_TASKS_PASSWORD=${REDIS_TASKS_PASSWORD}
       - KAFKA_BROKER=${KAFKA_BROKERS}
-      - JWT_SECRET=${JWT_SECRET}
-      - GATEWAY_SECRET=${JWT_SECRET}
+      - KAFKA_GROUP_TASKS=${KAFKA_GROUP_TASKS}
+      - JWT_SECRET=${TOKEN_ACCESS_SECRET}
+      - GATEWAY_SIGN=${GATEWAY_SIGN}
     depends_on:
+      pgbouncer:                 # ← ДОБАВЛЕНО
+        condition: service_healthy
       postgres-tasks:
         condition: service_healthy
       redis-tasks:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices-net
 
   analytics-service:
     build:
-      context: ./analytics-microservice  # ИЛИ ../analytics-microservice
+      context: ../analytics-microservice
       dockerfile: Dockerfile
+      args:
+        - GO_VERSION=1.24.9
     container_name: analytics-service
     ports:
       - "${ANALYTICS_PORT}:${ANALYTICS_PORT}"
     environment:
+      - ENV=${ENV}
       - CLICKHOUSE_HOST=${DB_ANALYTICS_HOST}
       - CLICKHOUSE_PORT=${DB_ANALYTICS_PORT}
+      - CLICKHOUSE_DB=${DB_ANALYTICS_DATABASE}
       - CLICKHOUSE_USER=${DB_ANALYTICS_USERNAME}
       - CLICKHOUSE_PASSWORD=${DB_ANALYTICS_PASSWORD}
-      - REDIS_HOST=${REDIS_ANALYTICS_HOST}
-      - REDIS_PORT=${REDIS_ANALYTICS_PORT}
-      - REDIS_PASSWORD=${REDIS_ANALYTICS_PASSWORD}
+      - REDIS_ANALYTICS_HOST=${REDIS_ANALYTICS_HOST}
+      - REDIS_ANALYTICS_PORT=${REDIS_ANALYTICS_PORT}
+      - REDIS_ANALYTICS_USERNAME=${REDIS_ANALYTICS_USERNAME}
+      - REDIS_ANALYTICS_PASSWORD=${REDIS_ANALYTICS_PASSWORD}
       - KAFKA_BROKER=${KAFKA_BROKERS}
-      - JWT_SECRET=${JWT_SECRET}
-      - GATEWAY_SECRET=${JWT_SECRET}
+      - KAFKA_GROUP_ANALYTICS=${KAFKA_GROUP_ANALYTICS}
+      - JWT_SECRET=${TOKEN_ACCESS_SECRET}
+      - GATEWAY_SIGN=${GATEWAY_SIGN}
     depends_on:
       clickhouse-analytics:
         condition: service_started
       redis-analytics:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices-net
 
   # ========== GATEWAY ==========
   gateway:
     build:
-      context: ./go-microservices/gateway  # ИЛИ ../go-microservices/gateway
+      context: ../go-microservices/gateway
       dockerfile: Dockerfile
+      args:
+        - GO_VERSION=1.25.4
     container_name: gateway
     ports:
       - "${PORT}:${PORT}"
     environment:
+      - ENV=${ENV}
       - LISTEN_BIND_IP=0.0.0.0
       - LISTEN_PORT=${PORT}
-      - LISTEN_TIMEOUT=30s
-      - JWT_SECRET=${JWT_SECRET}
-      - GATEWAY_SECRET=${GATEWAY_SECRET}
-      - GATEWAY_SECRET=${JWT_SECRET}
+      - LISTEN_TIMEOUT=${LISTEN_TIMEOUT}
+      - JWT_SECRET=${TOKEN_ACCESS_SECRET}
+      - GATEWAY_SIGN=${GATEWAY_SIGN}
       - AUTH_SERVICE_HOST=auth-service
-      - AUTH_SERVICE_PORT=${AUTH_PORT}
-      - AUTH_SERVICE_TIMEOUT=10s
+      - AUTH_SERVICE_PORT=${GRPC_PORT}
+      - AUTH_SERVICE_TIMEOUT=${AUTH_SERVICE_TIMEOUT}
       - USERS_SERVICE_HOST=users-service
       - USERS_SERVICE_PORT=${USERS_PORT}
-      - USERS_SERVICE_TIMEOUT=5s
+      - USERS_SERVICE_TIMEOUT=${USERS_SERVICE_TIMEOUT}
       - TASKS_SERVICE_HOST=tasks-service
       - TASKS_SERVICE_PORT=${TASKS_PORT}
-      - TASKS_SERVICE_TIMEOUT=10s
+      - TASKS_SERVICE_TIMEOUT=${TASKS_SERVICE_TIMEOUT}
       - ANALYTICS_SERVICE_HOST=analytics-service
       - ANALYTICS_SERVICE_PORT=${ANALYTICS_PORT}
-      - ANALYTICS_SERVICE_TIMEOUT=8s
-      - REDIS_GATEWAY_HOST=${REDIS_GATEWAY_HOST}
-      - REDIS_GATEWAY_PORT=${REDIS_GATEWAY_PORT}
+      - ANALYTICS_SERVICE_TIMEOUT=${ANALYTICS_SERVICE_TIMEOUT}
       - LOG_LEVEL=info
       - LOG_FORMAT=text
     depends_on:
@@ -310,7 +366,5 @@ services:
         condition: service_started
       analytics-service:
         condition: service_started
-      redis-gateway:
-        condition: service_healthy
     networks:
       - microservices-net
